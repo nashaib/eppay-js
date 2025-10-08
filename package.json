@@ -1,0 +1,51 @@
+{
+  "name": "eppay",
+  "version": "1.0.0",
+  "description": "JavaScript/TypeScript SDK for EpPay cryptocurrency payment integration",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/types/index.d.ts",
+  "scripts": {
+    "build": "rollup -c",
+    "prepublishOnly": "npm run build",
+    "test": "jest"
+  },
+  "keywords": [
+    "eppay",
+    "payment",
+    "cryptocurrency",
+    "crypto",
+    "web3",
+    "blockchain",
+    "qr-code",
+    "payment-gateway"
+  ],
+  "author": "EpPay <support@eppay.io>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nashaib/eppay-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nashaib/eppay-js/issues"
+  },
+  "homepage": "https://github.com/nashaib/eppay-js#readme",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/node": "^20.11.5",
+    "@types/qrcode": "^1.5.5",
+    "rollup": "^4.9.6",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.3"
+  }
+}
