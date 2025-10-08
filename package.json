@@ -1,6 +1,6 @@
 {
   "name": "eppay",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "JavaScript/TypeScript SDK for EpPay cryptocurrency payment integration",
   "type": "module",
   "main": "dist/index.js",
