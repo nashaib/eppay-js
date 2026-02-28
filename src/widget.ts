@@ -1,7 +1,8 @@
 /**
- * EpPay Payment Widget
+ * EpPay Payment Widget v2
  *
- * For frontend/browser integration
+ * For frontend/browser integration.
+ * Polls v2 status endpoint and checks `confirmed` boolean.
  */
 
 import QRCode from 'qrcode';
@@ -9,24 +10,36 @@ import QRCode from 'qrcode';
 export interface WidgetConfig {
   paymentId: string;
   container: HTMLElement | string;
-  verifyUrl?: string;
+  baseUrl?: string;
   successUrl?: string;
   cancelUrl?: string;
   autoRefresh?: boolean;
   pollingInterval?: number;
-  onComplete?: (paymentId: string) => void;
+  onComplete?: (paymentId: string, status: WidgetPaymentStatus) => void;
   onError?: (error: Error) => void;
+}
+
+export interface WidgetPaymentStatus {
+  payment_id: string;
+  status: 'pending' | 'completed';
+  confirmed: boolean;
+  amount: string;
+  network: string;
+  token_type: string;
+  tx_hash: string | null;
+  from: string | null;
+  completed_at: string | null;
 }
 
 export class EpPayWidget {
   private paymentId: string;
   private container: HTMLElement;
-  private verifyUrl: string;
+  private baseUrl: string;
   private successUrl?: string;
   private cancelUrl?: string;
   private autoRefresh: boolean;
   private pollingInterval: number;
-  private onComplete?: (paymentId: string) => void;
+  private onComplete?: (paymentId: string, status: WidgetPaymentStatus) => void;
   private onError?: (error: Error) => void;
   private timer: number | null = null;
   private checking = false;
@@ -45,7 +58,7 @@ export class EpPayWidget {
       this.container = config.container;
     }
 
-    this.verifyUrl = config.verifyUrl || '/eppay/verify';
+    this.baseUrl = (config.baseUrl || 'https://eppay.io').replace(/\/+$/, '');
     this.successUrl = config.successUrl;
     this.cancelUrl = config.cancelUrl;
     this.autoRefresh = config.autoRefresh ?? true;
@@ -84,6 +97,7 @@ export class EpPayWidget {
             </svg>
             <span style="font-weight: 600;">Payment Completed!</span>
           </div>
+          <div id="eppay-tx-info" style="margin-top: 0.5rem; font-size: 0.75rem; word-break: break-all;"></div>
         </div>
 
         <!-- Error Message -->
@@ -101,8 +115,8 @@ export class EpPayWidget {
         <div id="eppay-qr-container" style="display: flex; justify-content: center; margin-bottom: 1.5rem;">
           <div style="position: relative;">
             <img src="${qrCodeDataUrl}" alt="Payment QR Code" style="width: 16rem; height: 16rem; border: 4px solid #e5e7eb; border-radius: 0.5rem;"/>
-            <div id="eppay-loading" style="display: none; position: absolute; inset: 0; background: rgba(255, 255, 255, 0.75); display: flex; align-items: center; justify-content: center; border-radius: 0.5rem;">
-              <div style="width: 2.5rem; height: 2.5rem; border: 4px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <div id="eppay-loading" style="display: none; position: absolute; inset: 0; background: rgba(255, 255, 255, 0.75); align-items: center; justify-content: center; border-radius: 0.5rem;">
+              <div style="width: 2.5rem; height: 2.5rem; border: 4px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: eppay-spin 1s linear infinite;"></div>
             </div>
           </div>
         </div>
@@ -114,7 +128,7 @@ export class EpPayWidget {
             <span id="eppay-btn-checking" style="display: none;">Checking...</span>
           </button>
           ${this.cancelUrl ? `
-            <a href="${this.cancelUrl}" style="display: block; width: 100%; padding: 0.75rem 1rem; background: #e5e7eb; color: #1f2937; font-weight: 600; text-align: center; text-decoration: none; border-radius: 0.5rem; transition: background 0.2s;">
+            <a href="${this.cancelUrl}" style="display: block; width: 100%; padding: 0.75rem 1rem; background: #e5e7eb; color: #1f2937; font-weight: 600; text-align: center; text-decoration: none; border-radius: 0.5rem;">
               Cancel Payment
             </a>
           ` : ''}
@@ -124,7 +138,7 @@ export class EpPayWidget {
         ${this.autoRefresh ? `
           <div id="eppay-auto-indicator" style="margin-top: 1.5rem; text-align: center;">
             <div style="display: flex; align-items: center; justify-content: center; font-size: 0.875rem; color: #6b7280;">
-              <div style="width: 0.5rem; height: 0.5rem; background: #10b981; border-radius: 50%; margin-right: 0.5rem; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;"></div>
+              <div style="width: 0.5rem; height: 0.5rem; background: #10b981; border-radius: 50%; margin-right: 0.5rem; animation: eppay-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;"></div>
               <span>Auto-checking payment status...</span>
             </div>
           </div>
@@ -132,20 +146,15 @@ export class EpPayWidget {
       </div>
 
       <style>
-        @keyframes spin {
+        @keyframes eppay-spin {
           to { transform: rotate(360deg); }
         }
-        @keyframes pulse {
+        @keyframes eppay-pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.5; }
         }
-        #eppay-check-btn:hover {
-          background: #2563eb;
-        }
-        #eppay-check-btn:disabled {
-          background: #9ca3af;
-          cursor: not-allowed;
-        }
+        #eppay-check-btn:hover { background: #2563eb; }
+        #eppay-check-btn:disabled { background: #9ca3af; cursor: not-allowed; }
       </style>
     `;
 
@@ -157,7 +166,7 @@ export class EpPayWidget {
   }
 
   /**
-   * Check payment status
+   * Check payment status via v2 API
    */
   async checkStatus(): Promise<void> {
     if (this.checking) return;
@@ -166,11 +175,13 @@ export class EpPayWidget {
     this.updateUI('checking');
 
     try {
-      const response = await fetch(`${this.verifyUrl}/${this.paymentId}`);
-      const data = await response.json();
+      const response = await fetch(
+        `${this.baseUrl}/api/v2/payments/${this.paymentId}/status`
+      );
+      const data: WidgetPaymentStatus = await response.json();
 
-      if (data.status === true) {
-        this.handlePaymentComplete();
+      if (data.confirmed === true) {
+        this.handlePaymentComplete(data);
       } else {
         this.updateUI('pending');
       }
@@ -189,23 +200,29 @@ export class EpPayWidget {
   /**
    * Handle payment completion
    */
-  private handlePaymentComplete(): void {
+  private handlePaymentComplete(status: WidgetPaymentStatus): void {
     this.stopPolling();
     this.updateUI('completed');
 
+    // Show tx info
+    const txInfo = this.container.querySelector('#eppay-tx-info') as HTMLElement;
+    if (txInfo && status.tx_hash) {
+      txInfo.innerHTML = `TX: ${status.tx_hash}`;
+    }
+
     if (this.onComplete) {
-      this.onComplete(this.paymentId);
+      this.onComplete(this.paymentId, status);
     }
 
     if (this.successUrl) {
       setTimeout(() => {
         window.location.href = this.successUrl!;
-      }, 1000);
+      }, 1500);
     }
 
     // Dispatch custom event
     const event = new CustomEvent('eppay-payment-completed', {
-      detail: { paymentId: this.paymentId },
+      detail: { paymentId: this.paymentId, ...status },
     });
     document.dispatchEvent(event);
   }
