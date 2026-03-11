@@ -21,7 +21,7 @@
     "qr-code",
     "payment-gateway"
   ],
-  "author": "EpPay <support@eppay.io>",
+  "author": "EpPay <info@eppay.io>",
   "license": "MIT",
   "repository": {
     "type": "git",

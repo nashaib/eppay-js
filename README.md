@@ -356,7 +356,7 @@ MIT © EpPay
 
 - Documentation: https://docs.eppay.io
 - Issues: https://github.com/nashaib/eppay-js/issues
-- Email: support@eppay.io
+- Email: info@eppay.io
 
 ## Related Packages
 
